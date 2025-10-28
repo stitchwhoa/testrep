@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Simple WS Chat</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 20px; }
+    #log { border: 1px solid #ccc; height: 300px; overflow: auto; padding: 8px; }
+    #input { width: 80%; padding: 8px; }
+    #send { padding: 8px 12px; }
+    .msg { margin: 6px 0; }
+    .meta { color: #666; font-size: 0.9em; }
+    .system { color: #2a7; }
+  </style>
+</head>
+<body>
+  <h2>Simple WebSocket Chat</h2>
+
+  <div id="log"></div>
+
+  <div style="margin-top:10px;">
+    <input id="input" placeholder="Type a message..." />
+    <button id="send">Send</button>
+  </div>
+
+  <script>
+    const log = document.getElementById('log');
+    const input = document.getElementById('input');
+    const send = document.getElementById('send');
+
+    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    const ws = new WebSocket(wsUrl);
+
+    function append(text, cls = '') {
+      const d = document.createElement('div');
+      d.className = 'msg ' + cls;
+      d.innerHTML = text;
+      log.appendChild(d);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    ws.addEventListener('open', () => append('<span class="system">Connected to server</span>'));
+    ws.addEventListener('close', () => append('<span class="system">Disconnected</span>'));
+    ws.addEventListener('error', (e) => append('<span class="system">Error</span>'));
+
+    ws.addEventListener('message', (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.type === 'system') {
+          append(`<span class="system">${escapeHtml(data.text)}</span>`);
+        } else if (data.type === 'ack') {
+          // optional: ignore or show ack
+        } else {
+          const when = data.ts ? `<span class="meta">${data.ts}</span>` : '';
+          const who = data.name ? `<strong>${escapeHtml(data.name)}</strong>: ` : '';
+          append(`${when} ${who}${escapeHtml(data.text)}`);
+        }
+      } catch (e) {
+        append(escapeHtml(ev.data));
+      }
+    });
+
+    send.addEventListener('click', sendMessage);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+      const payload = {
+        type: 'message',
+        name: 'Guest', // можна додати поле для імені
+        text
+      };
+      ws.send(JSON.stringify(payload));
+      append(`<em class="meta">You:</em> ${escapeHtml(text)}`);
+      input.value = '';
+      input.focus();
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+  </script>
+</body>
+</html>
